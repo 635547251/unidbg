@@ -73,8 +73,6 @@ public class SignActivity extends AbstractJni implements IOResolver<AndroidFileI
         Logger.getLogger(ARM64SyscallHandler.class).setLevel(Level.DEBUG);
     }
 
-    
-
     public static void main(String[] args) throws FileNotFoundException {
         long start = System.currentTimeMillis();
         SignActivity signActivity = new SignActivity();
