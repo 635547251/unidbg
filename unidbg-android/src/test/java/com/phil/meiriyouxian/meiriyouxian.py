@@ -1,22 +1,23 @@
-def b64encode(text):
-    bins = str()
-    for c in text:
-        bins += '{:0>8}'.format(str(bin(c))[2:])
-    while len(bins) % 3:
-        bins += '00000000'
-    for i in range(6, len(bins) + int(len(bins) / 6), 7):
-        bins = bins[:i] + ' ' + bins[i:]
-    bins = bins.split(' ')
-    if '' in bins:
-        bins.remove('')
-    base64 = str()
-    for b in bins:
-        if b == '000000':
-            base64 += '='
-        else:
-            base64 += 'abcdefghijklmnopqrstuvwxyz+ZYXWVUTSRQPONMLKJIHGFEDCBA/1234567890'[
-                int(b, 2)]
-    return base64
+import binascii
+
+_TABLE_RAW = b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+_TABLE_MISS = b'abcdefghijklmnopqrstuvwxyz+ZYXWVUTSRQPONMLKJIHGFEDCBA/1234567890'
+_TRANS = bytes.maketrans(_TABLE_RAW, _TABLE_MISS)
+_TRANS_INV = bytes.maketrans(_TABLE_MISS, _TABLE_RAW)
 
 
-print(b64encode(bytes.fromhex("3136323637393535307ffcf9fd838e7e9bb7bbb0c3beb1b0b7abb2a9b3beb7c3b3bdbbaec3c0bfb1c3b0b3bcbfbfb2adbaa8b2b2b2adaeb2b9aeb2b2bfbfb1b6b8aeacb1b2c0bfafb7bdaea9b4beb1c0c4bcaa7a36383639")).replace("=", ""))
+def b64encode(data):
+    msg = binascii.b2a_base64(data, newline=False)
+    msg = msg.translate(_TRANS)
+    msg = msg.decode().rstrip('=')
+    return msg
+
+
+timestamp = 0x17Ac4917cb5
+timestamp_a, timestamp_b = str(timestamp)[:-4].encode(), str(timestamp)[-4:].encode()
+table_A = bytes.fromhex('088280800810011a40413746433333363438303643394632464135464541344239394342443430393138393532303538373839424433393737323835454132364634303743334343453001')
+table_B = timestamp_b
+table_c = "ABCDEFGH".encode()
+result = bytes([table_A[i] + table_B[i % 4] + table_c[i % 8] for i in range(75)])
+print("mfsn" +
+      b64encode(timestamp_a + result + timestamp_b))

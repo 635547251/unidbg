@@ -27,6 +27,7 @@ import com.github.unidbg.virtualmodule.android.AndroidModule;
 import com.sun.jna.Pointer;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import unicorn.ArmConst;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -50,16 +51,16 @@ public class SignActivity extends AbstractJni implements IOResolver<AndroidFileI
         Memory memory = emulator.getMemory();
         LibraryResolver resolver = new AndroidResolver(23);
         memory.setLibraryResolver(resolver);
-        emulator.getSyscallHandler().addIOResolver(this);
         vm = emulator.createDalvikVM(new File("unidbg-android/src/test/java/com/phil/meiriyouxian/meiriyouxian9942.apk"));
-        vm.setJni(this);
-        vm.setVerbose(true);
 
         // 注册 libandroid.so
         new AndroidModule(emulator, vm).register(memory);
+        emulator.getSyscallHandler().addIOResolver(this);
+        vm.setVerbose(true);
 
         DalvikModule dm = vm.loadLibrary(new File("unidbg-android/src/test/java/com/phil/meiriyouxian/libsign.so"), true);
         module = dm.getModule();
+        vm.setJni(this);
         dm.callJNI_OnLoad(emulator);
 
 //        String traceFile = "unidbg-android/src/test/java/com/phil/meiriyouxian/sign.txt";
@@ -80,6 +81,7 @@ public class SignActivity extends AbstractJni implements IOResolver<AndroidFileI
         System.out.println("load offset=" + (System.currentTimeMillis() - start) + "ms");
         signActivity.ConsoleDebugger();
         signActivity.hook2f638yUnicorn();
+        signActivity.hook363dcByUnicorn();
         signActivity.init();
         signActivity.main();
     }
@@ -87,7 +89,7 @@ public class SignActivity extends AbstractJni implements IOResolver<AndroidFileI
 
     public void ConsoleDebugger() {
 //        // trace 结果来源(第一层)
-//        emulator.traceWrite(0x402e7000, 0x402e7000 + 122);
+//        emulator.traceWrite(0x402e7000L, 0x402e7000L + 122);
 //
 //        // 118个字符串来源(第二层)
 //        emulator.attach().addBreakPoint(module.base + 0x2F9EE);
@@ -96,10 +98,13 @@ public class SignActivity extends AbstractJni implements IOResolver<AndroidFileI
 //        emulator.attach().addBreakPoint(module.base + 0x37F3C);
 
 //         base64参数来源 不包括时间戳(第四层)
-//        emulator.traceWrite(0x402e4000, 0x402e4052);
+//        emulator.traceWrite(0x402E4000L, 0x402e4052L);
 
 //        emulator.traceWrite(0x402a10f0, 0x402a10f0 + 0x4b);
-        emulator.attach().addBreakPoint(module.base + 0x364BE);
+//        emulator.attach().addBreakPoint(module.base + 0x364b8);
+
+//        emulator.attach().addBreakPoint(module.base + 0x3C272);
+        emulator.traceWrite(0x402df09c, 0x402df09c + 8);
     }
 
     private void hook2f638yUnicorn() {
@@ -130,13 +135,43 @@ public class SignActivity extends AbstractJni implements IOResolver<AndroidFileI
     }
 
 
+    public void hook363dcByUnicorn() {
+        emulator.getBackend().hook_add_new(new CodeHook() {
+            @Override
+            public void onAttach(UnHook unHook) {
+            }
+
+            @Override
+            public void detach() {
+            }
+
+            @Override
+            public void hook(Backend backend, long address, int size, Object user) {
+                if (address == (module.base + 0x3647c)) {
+                    RegisterContext ctx = emulator.getContext();
+                    int r1 = ctx.getIntByReg(ArmConst.UC_ARM_REG_R1);
+                    System.out.print("读取 B 表 index:" + r1);
+                }
+                if (address == (module.base + 0x364a4)) {
+                    RegisterContext ctx = emulator.getContext();
+                    int r1 = ctx.getIntByReg(ArmConst.UC_ARM_REG_R1);
+                    System.out.print("; 读取 C 表 index:" + r1);
+                }
+                if (address == (module.base + 0x364b8)) {
+                    RegisterContext ctx = emulator.getContext();
+                    int r8 = ctx.getIntByReg(ArmConst.UC_ARM_REG_R8);
+                    System.out.println("; 读取 A 表 index:" + r8);
+                }
+            }
+        }, module.base + 0x363dc, module.base + 0x363dc + 0x140, null);
+    }
+
+
     private void init() {
         List<Object> list = new ArrayList<>(10);
         list.add(vm.getJNIEnv()); // 第一个参数是env
         list.add(0);
-        DvmObject<?> context =
-                vm.resolveClass("cn/missfresh/application/MissFreshApplication",
-                        vm.resolveClass("android/content/Context")).newObject(null);// context
+        DvmObject<?> context = vm.resolveClass("cn/missfresh/application/MissFreshApplication", vm.resolveClass("android/content/Context")).newObject(null);// context
         list.add(vm.addLocalObject(context));
         list.add(vm.addLocalObject(new StringObject(vm, "01000002")));
         module.callFunction(emulator, 0x38bb4 + 1, list.toArray());
@@ -146,13 +181,11 @@ public class SignActivity extends AbstractJni implements IOResolver<AndroidFileI
         List<Object> list = new ArrayList<>(10);
         list.add(vm.getJNIEnv()); // 第一个参数是env
         list.add(0); // 第二个参数，实例方法是jobject，静态方法是jclazz，直接填0，一般用不到。 DvmObject<?> context =
-        DvmObject<?> context = vm.resolveClass("cn/missfresh/application/MissFreshApplication",
-                vm.resolveClass("android/content/Context")).newObject(null);// context
+        DvmObject<?> context = vm.resolveClass("cn/missfresh/application/MissFreshApplication", vm.resolveClass("android/content/Context")).newObject(null);// context
         list.add(vm.addLocalObject(context));
         list.add(null);
         list.add(0x17Ac4917cb5L);
-        list.add(vm.addLocalObject(new
-                ByteArray(vm, "version".getBytes(StandardCharsets.UTF_8))));
+        list.add(vm.addLocalObject(new ByteArray(vm, "version".getBytes(StandardCharsets.UTF_8))));
         Number number = module.callFunction(emulator, 0x38BF4 + 1, list.toArray());
         String result = vm.getObject(number.intValue()).getValue().toString();
 //        mfsnmtyCnRY4ntuEV0B40yooVLG2G6ddFJgEH5GCKZo9H7oBFZGGE7c0IYoEI6C0F6kHGKSCIJkHJJk4JJkCF69DHJSGJlgCEl9FH61GKZs9IYdeFkL5nRU1oq
