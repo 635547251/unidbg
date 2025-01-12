@@ -1,1 +1,0 @@
-Linux version 4.4.78-perf+ (buildslave@byws19) (gcc version 4.9.x 20150123 (prerelease) (GCC) ) #1 SMP PREEMPT Fri Feb 22 15:54:43 CST 2019
